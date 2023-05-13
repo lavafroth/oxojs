@@ -22,15 +22,6 @@ To display the help for the tool use the `--help` flag:
 $ oxojs --help
 ```
 
-
-      --user-agent <USER_AGENT>    User-Agent to send in requests
-  -o, --output <OUTPUT>            Filepath to write results to
-  -c, --concurrency <CONCURRENCY>  Number of concurrent workers to spawn [default: 4]
-  -t, --timeout <TIMEOUT>          Timeout (in seconds) for the client [default: 15]
-  -h, --help                       Print help
-  -V, --version                    Print version
-
-
 One can either supply the path to an input file as the first argument or pipe
 the URLs through standard input. Additionally, the following flags are
 available.
