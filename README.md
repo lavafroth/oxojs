@@ -4,27 +4,29 @@ oxojs aims to be a drop-in replacement for `subjs` to fetch javascript files fro
 
 It's recommended to pair this with @lc's [gau](https://github.com/lc/gau) and @GerbenJavado [https://github.com/GerbenJavado/LinkFinder](https://github.com/GerbenJavado/LinkFinder)
 
-# Resources
-- [Usage](#usage)
-- [Installation](#installation)
+## Usage
 
-## Usage:
-Examples:
-```sh
-$ cat urls.txt | oxojs 
-$ oxojs -i urls.txt
-$ cat hosts.txt | gau | oxojs
-```
-
-To display the help for the tool use the `--help` flag:
+One can either supply the path to an input file as the first argument
 
 ```sh
-$ oxojs --help
+oxojs urls.txt
 ```
 
-One can either supply the path to an input file as the first argument or pipe
-the URLs through standard input. Additionally, the following flags are
-available.
+or pipe the URLs through standard input.
+
+```sh
+cat urls.txt | oxojs 
+```
+
+```sh
+cat hosts.txt | gau | oxojs
+```
+
+Additionally, the following flags are displayed using the `--help` flag.
+
+```sh
+oxojs --help
+```
 
 | Flag | Description | Default value | Example value |
 |------|-------------|---------------|---------------|
@@ -36,10 +38,13 @@ available.
 
 
 ## Installation
-### From Source:
+### From Source
 
-This is the only installation method for now. Binary releases will be available once the project becomes stable.
+Install rust from rustup.rs or your package manager. Now run:
 
 ```sh
 cargo install --git https://github.com/lavafroth/oxojs
 ```
+
+### Binary Releases
+Binary releases will be available once the project becomes stable.
