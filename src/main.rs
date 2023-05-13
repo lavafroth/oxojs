@@ -143,12 +143,13 @@ pub async fn worker(client: Client, jobs: Receiver<String>, results: Sender<Stri
             }
         }
 
-        for js in soup
+        for div in soup
             .tag("div")
             .find_all()
-            .filter_map(|div| div.get("data-script-src"))
         {
-            carved.push(normalize_if_needed(js, &url));
+            if let Some(js) = div.get("data-script-src") {
+                carved.push(normalize_if_needed(js, &url));
+            }
         }
 
         for js in carved.into_iter() {

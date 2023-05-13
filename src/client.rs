@@ -1,4 +1,4 @@
-use anyhow::Result;
+use color_eyre::Result;
 use reqwest::Client;
 
 use reqwest::header::HeaderMap;
