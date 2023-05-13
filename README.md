@@ -41,7 +41,7 @@ available.
 | `-t` | Timeout (in seconds) for the client | 15 | 20
 | `--user-agent` | User-Agent to send in requests | "oxojs/VERSION" | "Googlebot/2.1"
 | `-o` | Filepath to write results to | `None` | "path/to/output"
-| `--version` | Show version number | N/A | `oxojs --version"` | N/A
+| `--version` | Show version number | N/A | N/A
 
 
 ## Installation
