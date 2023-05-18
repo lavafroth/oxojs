@@ -1,16 +1,18 @@
-use color_eyre::{eyre::WrapErr, Help, Result};
+use color_eyre::{
+    eyre::{bail, WrapErr},
+    Help, Result,
+};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use lazy_static::lazy_static;
+use log::{warn, LevelFilter::Info};
 use regex::Regex;
+use reqwest::{Client, Url};
+use simple_logger::SimpleLogger;
 use soup::prelude::*;
 use std::{
     fs::File,
     io::{self, BufRead, BufReader, Write},
 };
-
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use simple_logger::SimpleLogger;
-
-use reqwest::{Client, Url};
 use tokio::task;
 mod cli;
 mod client;
@@ -22,9 +24,7 @@ lazy_static! {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = cli::args();
-    SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .init()?;
+    SimpleLogger::new().with_level(Info).init()?;
     color_eyre::install()?;
 
     let (jobs_tx, jobs_rx) = unbounded();
@@ -109,49 +109,47 @@ pub fn normalize(js: &str, url: &Url) -> String {
     }
 }
 
+pub async fn parse_and_fetch_url(
+    client: &Client,
+    job: &str,
+    results: &Sender<String>,
+) -> Result<()> {
+    let url = Url::parse(job).wrap_err(format!("URL will be ignored: Unable to parse: {job}"))?;
+
+    if !url.has_host() {
+        bail!("URL does not have host: URL ignored: {job}");
+    }
+
+    let text = fetch(&client, url.clone())
+        .await
+        .wrap_err(format!("Unable to fetch URL: {url}"))?;
+
+    let soup = Soup::new(&text);
+
+    let script_iter = soup.tag("script").find_all().flat_map(|script| {
+        RE.find_iter(&script.text())
+            .map(|js| normalize(js.as_str(), &url))
+            .chain(script.get("src").map(|js| normalize_if_needed(js, &url)))
+            .collect::<Vec<_>>()
+    });
+
+    let div_iter = soup.tag("div").find_all().filter_map(|div| {
+        div.get("data-script-src")
+            .map(|js| normalize_if_needed(js, &url))
+    });
+
+    for js in script_iter.chain(div_iter) {
+        results.send(js).unwrap_or_else(|e| {
+            warn!("Unable to send result from worker to main thread: {e}");
+        });
+    }
+    Ok(())
+}
+
 pub async fn worker(client: Client, jobs: Receiver<String>, results: Sender<String>) {
     for job in jobs {
-        let url = match Url::parse(&job) {
-            Ok(url) => url,
-            Err(e) => {
-                log::warn!("URL will be ignored: Unable to parse: {job}: {e}");
-                continue;
-            }
-        };
-
-        if !url.has_host() {
-            log::warn!("URL does not have host: URL ignored: {}", job);
-            continue;
-        }
-
-        let text = match fetch(&client, url.clone()).await {
-            Ok(text) => text,
-            Err(e) => {
-                log::warn!("Unable to fetch URL: {url}: {e}");
-                continue;
-            }
-        };
-        let soup = Soup::new(&text);
-
-        let script_iter = soup.tag("script").find_all().flat_map(|script| {
-            RE.find_iter(&script.text())
-                .map(|js| normalize(js.as_str(), &url))
-                .chain(script.get("src").map(|js| normalize_if_needed(js, &url)))
-                .collect::<Vec<_>>()
-        });
-
-        let div_iter = soup.tag("div").find_all().filter_map(|div| {
-            div.get("data-script-src")
-                .map(|js| normalize_if_needed(js, &url))
-        });
-
-        for js in script_iter.chain(div_iter) {
-            match results.send(js) {
-                Ok(_) => {}
-                Err(e) => {
-                    log::warn!("Unable to send result from worker to main thread: {e}")
-                }
-            }
-        }
+        parse_and_fetch_url(&client, &job, &results)
+            .await
+            .unwrap_or_else(|e| warn!("{e}"))
     }
 }
