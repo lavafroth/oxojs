@@ -76,19 +76,6 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-pub async fn fetch(client: &Client, url: Url) -> Result<String> {
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .wrap_err("Failed to send request")?;
-
-    Ok(response
-        .text()
-        .await
-        .wrap_err("Failed to retrieve response text")?)
-}
-
 pub fn normalize_if_needed(js: String, url: &Url) -> String {
     if js.starts_with("http://") || js.starts_with("https://") {
         js
@@ -100,7 +87,7 @@ pub fn normalize_if_needed(js: String, url: &Url) -> String {
 pub fn normalize(js: &str, url: &Url) -> String {
     if js.starts_with("//") {
         format!("{}:{}", url.scheme(), js)
-    } else if js.starts_with("/") {
+    } else if js.starts_with('/') {
         // The following unwraps must not panic as we have already
         // filtered out URLs which do not have a host string.
         format!("{}://{}{}", url.scheme(), url.host_str().unwrap(), js)
@@ -109,20 +96,21 @@ pub fn normalize(js: &str, url: &Url) -> String {
     }
 }
 
-pub async fn parse_and_fetch_url(
-    client: &Client,
-    job: &str,
-    results: &Sender<String>,
-) -> Result<()> {
+pub async fn scrape(client: &Client, job: &str, results: &Sender<String>) -> Result<()> {
     let url = Url::parse(job).wrap_err(format!("URL will be ignored: Unable to parse: {job}"))?;
 
     if !url.has_host() {
         bail!("URL does not have host: URL ignored: {job}");
     }
 
-    let text = fetch(&client, url.clone())
+    let text = client
+        .get(url.clone())
+        .send()
         .await
-        .wrap_err(format!("Unable to fetch URL: {url}"))?;
+        .wrap_err("Failed to send request")?
+        .text()
+        .await
+        .wrap_err("Failed to retrieve response text")?;
 
     let soup = Soup::new(&text);
 
@@ -148,7 +136,7 @@ pub async fn parse_and_fetch_url(
 
 pub async fn worker(client: Client, jobs: Receiver<String>, results: Sender<String>) {
     for job in jobs {
-        parse_and_fetch_url(&client, &job, &results)
+        scrape(&client, &job, &results)
             .await
             .unwrap_or_else(|e| warn!("{e}"))
     }
