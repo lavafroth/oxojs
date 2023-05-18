@@ -16,7 +16,7 @@ mod cli;
 mod client;
 
 lazy_static! {
-    static ref RE: Regex = Regex::new(r"[(\w./:)]*js").unwrap();
+    static ref RE: Regex = Regex::new(r"[\w./:]*?js").unwrap();
 }
 
 #[tokio::main]
@@ -132,27 +132,20 @@ pub async fn worker(client: Client, jobs: Receiver<String>, results: Sender<Stri
             }
         };
         let soup = Soup::new(&text);
-        let mut carved = vec![];
 
-        for script in soup.tag("script").find_all() {
-            if let Some(js) = script.get("src") {
-                carved.push(normalize_if_needed(js, &url));
-            }
-            for js in RE.find_iter(&script.text()) {
-                carved.push(normalize(js.as_str(), &url))
-            }
-        }
+        let script_iter = soup.tag("script").find_all().flat_map(|script| {
+            RE.find_iter(&script.text())
+                .map(|js| normalize(js.as_str(), &url))
+                .chain(script.get("src").map(|js| normalize_if_needed(js, &url)))
+                .collect::<Vec<_>>()
+        });
 
-        for div in soup
-            .tag("div")
-            .find_all()
-        {
-            if let Some(js) = div.get("data-script-src") {
-                carved.push(normalize_if_needed(js, &url));
-            }
-        }
+        let div_iter = soup.tag("div").find_all().filter_map(|div| {
+            div.get("data-script-src")
+                .map(|js| normalize_if_needed(js, &url))
+        });
 
-        for js in carved.into_iter() {
+        for js in script_iter.chain(div_iter) {
             match results.send(js) {
                 Ok(_) => {}
                 Err(e) => {
