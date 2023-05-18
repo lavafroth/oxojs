@@ -13,7 +13,7 @@ use std::{
     fs::File,
     io::{self, BufRead, BufReader, Write},
 };
-use tokio::task;
+use tokio::task::spawn;
 mod cli;
 mod client;
 
@@ -32,12 +32,12 @@ async fn main() -> Result<()> {
 
     for _ in 0..args.concurrency {
         let client = client::initialize(args.timeout, args.user_agent.clone())?;
-        task::spawn(worker(client, jobs_rx.clone(), results_tx.clone()));
+        spawn(worker(client, jobs_rx.clone(), results_tx.clone()));
     }
 
     drop(results_tx);
 
-    task::spawn(async move {
+    spawn(async move {
         let reader: Box<dyn BufRead> = match args.input {
             Some(path) => Box::new(BufReader::new(
                 File::open(path).expect("Failed to open input file path for reading"),
@@ -50,19 +50,19 @@ async fn main() -> Result<()> {
                     line.wrap_err("While trying to send jobs to workers")
                         .expect("Unable to read lines from input"),
                 )
-                .wrap_err("Unable to send jobs to workers")
-                .unwrap();
+                // This will only happen when the program is terminated by force.
+                .expect("Unable to send jobs to workers");
         }
     });
 
     let mut handle: Box<dyn Write> = if let Some(filepath) = args.output {
         Box::new(
             File::create(&filepath)
-                .wrap_err(format!(
+                .suggestion("Try supplying a filename at a location where you can write to")
+                .expect(&format!(
                     "Failed to create file at path {}",
                     filepath.display()
-                ))
-                .suggestion("Try supplying a filename at a location where you can write to")?,
+                )),
         )
     } else {
         Box::new(io::stdout())
@@ -70,8 +70,8 @@ async fn main() -> Result<()> {
 
     for result in results_rx {
         writeln!(handle, "{}", result)
-            .wrap_err("Failed to write to output file handle")
-            .suggestion("Try supplying a filename at a location where you can write to")?;
+            .suggestion("Try supplying a filename at a location where you can write to")
+            .expect("Failed to write to output file handle");
     }
     Ok(())
 }
