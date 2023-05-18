@@ -59,10 +59,8 @@ async fn main() -> Result<()> {
         Box::new(
             File::create(&filepath)
                 .suggestion("Try supplying a filename at a location where you can write to")
-                .expect(&format!(
-                    "Failed to create file at path {}",
-                    filepath.display()
-                )),
+                .unwrap_or_else(|_| panic!("Failed to create file at path {}",
+                    filepath.display())),
         )
     } else {
         Box::new(io::stdout())
